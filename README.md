@@ -25,6 +25,4 @@ To maintain a clean and reliable repository, our team follows these mandatory wo
 Before running or contributing to this project locally, ensure you have installed:
 
 * **Operating System:** Linux (Ubuntu/Debian recommended)
-* **Git:** Installed and configured locally (`git --version`)
 * **Python:** `3.10+` (for backend development)
-* **Node.js & npm:** `v18+` (for React/Vite frontend development)
