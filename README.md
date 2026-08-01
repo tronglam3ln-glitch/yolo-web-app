@@ -6,7 +6,7 @@ This project is an image and video object-detection web application built using 
 ## Team Members
 * **Nguyen Thao Nguyen**
 * **Nguyen Trong Lam**
-  
+* **Ta Truong Son**  
 ## Branch Rules & Team Workflow
 To maintain a clean and reliable repository, our team follows these mandatory workflow rules:
 
