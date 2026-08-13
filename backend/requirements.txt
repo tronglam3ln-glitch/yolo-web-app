@@ -7,3 +7,4 @@ numpy==1.26.4
 pillow==10.4.0
 pytest==8.3.2
 httpx==0.27.2
+imageio-ffmpeg==0.5.1

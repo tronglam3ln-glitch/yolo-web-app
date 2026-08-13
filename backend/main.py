@@ -1,20 +1,10 @@
 """
-main.py
-Backend FastAPI cho ứng dụng Web YOLO Object Detection - Week 2.
-
 Luồng xử lý: browser -> frontend -> backend (file này) -> YOLO model -> response -> frontend.
-
-Phạm vi tuần này (theo yêu cầu đề bài, KHÔNG được vượt quá):
-- Không database, không login, không train model custom, không hàng đợi video dài hạn.
-- Không Docker / Kubernetes / Message Queue.
-- Chạy local bằng: uvicorn main:app --reload --port 8000
-
 Các đoạn code có ghi chú "Tham khảo Ultralytics docs" là các đoạn được viết dựa theo
 ví dụ chính thức trong tài liệu mã nguồn mở của Ultralytics YOLO:
 https://docs.ultralytics.com/modes/predict/
 https://docs.ultralytics.com/usage/python/
 """
-
 import logging
 import os
 import shutil
@@ -23,6 +13,8 @@ import time
 import uuid
 from pathlib import Path
 from typing import List, Optional
+import subprocess
+import imageio_ffmpeg
 
 import cv2
 import numpy as np
@@ -325,12 +317,7 @@ async def detect_video(
     confidence: float = Form(0.25),
 ):
     """
-    Nhận 1 video ngắn (.mp4), chạy YOLO trên toàn bộ frame, trả về:
-    - result_video_url: đường dẫn để GET file video đã annotate
-    - total_frames: tổng số frame đã xử lý
-    - class_counts: tổng số lần mỗi class xuất hiện trên toàn bộ các frame
-    - count: tổng số detection trên toàn bộ video
-    - processing_time_ms: thời gian xử lý (mili giây)
+   
     """
     if model is None:
         raise HTTPException(
@@ -390,6 +377,8 @@ async def detect_video(
                 class_counts[cls_name] = class_counts.get(cls_name, 0) + 1
                 total_detections += 1
 
+
+        
         # Ultralytics lưu video output trong project/name/<tên_file_gốc>.mp4 (hoặc .avi
         # tuỳ codec hệ thống). Tìm đúng file đó để trả về cho client.
         output_video_path = _find_output_video(job_output_dir)
@@ -398,6 +387,8 @@ async def detect_video(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Model chạy thành công nhưng không tìm thấy file video kết quả.",
             )
+
+        output_video_path = reencode_to_h264(output_video_path)
 
         return JSONResponse(
             content={
@@ -423,27 +414,79 @@ def _find_output_video(job_output_dir: Path) -> Optional[Path]:
         if found:
             return found[0]
     return None
+def reencode_to_h264(input_path: Path) -> Path:
+    """
+    Re-encode video sang H.264 (yuv420p) để trình duyệt phát được qua thẻ <video>.
+    Ultralytics/OpenCV mặc định ghi bằng codec mp4v, hầu hết browser không hỗ trợ
+    phát trực tiếp codec này dù đuôi file là .mp4.
+    """
+    output_path = input_path.with_name(f"{input_path.stem}_h264.mp4")
+    ffmpeg_bin = imageio_ffmpeg.get_ffmpeg_exe()
+
+    cmd = [
+        ffmpeg_bin, "-y",
+        "-i", str(input_path),
+        "-c:v", "libx264",
+        "-pix_fmt", "yuv420p",
+        "-movflags", "+faststart",  # cho phép phát trước khi tải xong toàn bộ file
+        "-an",  # video YOLO output không có audio track, bỏ qua xử lý audio
+        str(output_path),
+    ]
+
+    try:
+        subprocess.run(
+            cmd,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+    except subprocess.CalledProcessError as exc:
+        logger.error("ffmpeg re-encode thất bại: %s", exc.stderr)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Xử lý video kết quả thất bại (re-encode).",
+        ) from exc
+    except subprocess.TimeoutExpired as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Re-encode video quá thời gian cho phép.",
+        ) from exc
+
+    # Xoá file gốc codec mp4v, chỉ giữ bản h264 để phục vụ FE
+    input_path.unlink(missing_ok=True)
+    return output_path
+
+
+def _find_saved_output_video(job_output_dir: Path) -> Optional[Path]:
+    """Tìm file video kết quả trong thư mục output của 1 job.
+    Ưu tiên file đã re-encode h264 (phục vụ phát trên browser)."""
+    if not job_output_dir.exists():
+        return None
+    h264_files = list(job_output_dir.glob("*_h264.mp4"))
+    if h264_files:
+        return h264_files[0]
+    for ext in (".mp4", ".avi"):
+        found = list(job_output_dir.glob(f"*{ext}"))
+        if found:
+            return found[0]
+    return None
 
 
 @app.get("/api/results/{job_id}")
 def get_result_video(job_id: str):
-    """Trả về file video kết quả đã được annotate cho 1 job_id cụ thể."""
-    # Chặn path traversal: job_id phải là hex string (do uuid4().hex sinh ra)
-    if not job_id.isalnum():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="job_id không hợp lệ.")
-
+    """Trả về file video kết quả (đã re-encode h264) cho browser phát/tải xuống."""
     job_output_dir = RESULTS_DIR / job_id
-    video_path = _find_output_video(job_output_dir)
+    video_path = _find_saved_output_video(job_output_dir)
     if video_path is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Không tìm thấy kết quả cho job_id này (có thể đã hết hạn).",
+            detail="Không tìm thấy video kết quả cho job_id này.",
         )
-
     return FileResponse(
         path=str(video_path),
         media_type="video/mp4",
-        filename=f"detected_{job_id}.mp4",
+        filename=video_path.name,
     )
 
 
