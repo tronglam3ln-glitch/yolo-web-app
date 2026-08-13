@@ -458,8 +458,7 @@ def reencode_to_h264(input_path: Path) -> Path:
     return output_path
 
 
-@app.get("/api/results/{job_id}")
-def _find_output_video(job_output_dir: Path) -> Optional[Path]:
+def _find_saved_output_video(job_output_dir: Path) -> Optional[Path]:
     """Tìm file video kết quả trong thư mục output của 1 job.
     Ưu tiên file đã re-encode h264 (phục vụ phát trên browser)."""
     if not job_output_dir.exists():
@@ -472,6 +471,23 @@ def _find_output_video(job_output_dir: Path) -> Optional[Path]:
         if found:
             return found[0]
     return None
+
+
+@app.get("/api/results/{job_id}")
+def get_result_video(job_id: str):
+    """Trả về file video kết quả (đã re-encode h264) cho browser phát/tải xuống."""
+    job_output_dir = RESULTS_DIR / job_id
+    video_path = _find_saved_output_video(job_output_dir)
+    if video_path is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Không tìm thấy video kết quả cho job_id này.",
+        )
+    return FileResponse(
+        path=str(video_path),
+        media_type="video/mp4",
+        filename=video_path.name,
+    )
 
 
 # ============================================================================
