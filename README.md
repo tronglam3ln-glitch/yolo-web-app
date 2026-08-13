@@ -29,8 +29,11 @@ To maintain a clean and reliable repository, our team follows these mandatory wo
 
 Before running or contributing to this project locally, ensure you have installed:
 
-- **Operating System:** Linux (Ubuntu/Debian recommended)
+- **Operating System:** Linux / Windows / macOS
 - **Python:** `3.10+` (for backend development)
+- **Node.js:** `18.x+` (for frontend development)
+
+---
 
 # Backend - YOLO Detection API
 
@@ -38,53 +41,47 @@ FastAPI + Ultralytics YOLOv8. Chạy hoàn toàn local, không Docker, không da
 
 ## 1. Cài đặt
 
-```bash
 cd backend
 python -m venv .venv
 source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-```
 
-Lần chạy đầu tiên, Ultralytics sẽ tự động tải file `yolov8n.pt` (~6MB) về máy —
-cần có kết nối internet.
+Lần chạy đầu tiên, Ultralytics sẽ tự động tải file yolov8n.pt (~6MB) về máy — cần có kết nối internet.
 
 Đã kết nối sau lần đầu, những lần sau chỉ cần:
 
-​`powershell
 cd backend
 .\.venv\Scripts\Activate.ps1      # macOS/Linux: source .venv/bin/activate
-​`
 
 ## 2. Chạy server
 
-```bash
 uvicorn main:app --reload --port 8000
-```
 
 - API docs (Swagger UI, tự sinh bởi FastAPI): http://localhost:8000/docs
 - Health check: http://localhost:8000/health
 
 ## 3. API Contract
 
-### `GET /health`
+### GET /health
 
 Trả về trạng thái server + model.
 
-```json
-{ "status": "ok", "model_loaded": true, "model_name": "yolov8n.pt" }
-```
+{ 
+  "status": "ok", 
+  "model_loaded": true, 
+  "model_name": "yolov8n.pt" 
+}
 
-### `POST /api/detect/image`
+### POST /api/detect/image
 
-`multipart/form-data`:
+multipart/form-data:
 | field | type | bắt buộc | ghi chú |
 |---|---|---|---|
-| `file` | file | có | jpg/jpeg/png, tối đa 10MB |
-| `confidence` | float | không (mặc định 0.25) | 0.0 - 1.0 |
+| file | file | có | jpg/jpeg/png, tối đa 10MB |
+| confidence | float | không (mặc định 0.25) | 0.0 - 1.0 |
 
 Response 200:
 
-```json
 {
   "annotated_image_base64": "...",
   "detections": [
@@ -99,54 +96,44 @@ Response 200:
   "processing_time_ms": 45.32,
   "confidence_threshold": 0.25
 }
-```
 
-### `POST /api/detect/video`
+### POST /api/detect/video
 
-`multipart/form-data`:
+multipart/form-data:
 | field | type | bắt buộc | ghi chú |
 |---|---|---|---|
-| `file` | file | có | .mp4, tối đa 50MB, tối đa 15 giây |
-| `confidence` | float | không (mặc định 0.25) | 0.0 - 1.0 |
+| file | file | có | .mp4, tối đa 50MB, tối đa 15 giây |
+| confidence | float | không (mặc định 0.25) | 0.0 - 1.0 |
 
 Response 200:
 
-```json
 {
-  "result_video_url": "/api/results/<job_id>",
-  "total_frames": 90,
-  "class_counts": { "person": 120, "car": 15 },
-  "count": 135,
-  "processing_time_ms": 3200.11,
+  "result_video_url": "/static/processed_video.mp4",
+  "detections": [],
+  "processing_time_ms": 1250.45,
   "confidence_threshold": 0.25
 }
-```
 
-Tải video kết quả bằng `GET {result_video_url}` (trả về file mp4).
+---
 
-## 4. Giới hạn phiên bản hiện tại
+# Frontend - Web Application (React + Vite)
 
-- Ảnh: jpg/jpeg/png, tối đa `MAX_IMAGE_SIZE_MB` (mặc định 10MB).
-- Video: chỉ .mp4, tối đa `MAX_VIDEO_SIZE_MB` (50MB) và `MAX_VIDEO_DURATION_SEC` (15s).
-- Không có database, không lưu lịch sử, không login.
-- File kết quả video lưu ở thư mục tạm hệ thống, không đảm bảo tồn tại lâu dài
-  (sẽ bị xoá khi restart server).
+Giao diện người dùng tương tác được xây dựng bằng React và Vite, kết nối REST API với Backend FastAPI để xử lý nhận diện vật thể.
 
-## 5. Chạy test
+## 1. Cài đặt
 
-```bash
-python -m pytest -v
-```
+cd frontend
+npm install
 
-## 6. Nguồn tham khảo mã nguồn mở
+## 2. Chạy ứng dụng Frontend
 
-Các đoạn logic sau được viết dựa theo ví dụ chính thức của Ultralytics
-(đã ghi chú trực tiếp trong `main.py`):
+npm run dev
 
-- Cách load model 1 lần: `model = YOLO("yolov8n.pt")`
-- Cách chạy inference: `model.predict(source=..., conf=...)`
-- Cách vẽ bounding box có sẵn: `result.plot()`
-- Cách xử lý video mà không cần tự bóc tách frame bằng OpenCV:
-  `model.predict(source="video.mp4", save=True)`
+- Giao diện Web: http://localhost:5173
 
-Tài liệu gốc: https://docs.ultralytics.com/modes/predict/
+## 3. Tính năng chính trên UI
+
+- 📸 **Nhận diện Ảnh**: Tải ảnh (.jpg, .jpeg, .png), xem trước và hiển thị kết quả khoanh vùng (bounding box) kèm danh sách phân loại chi tiết.
+- 🎥 **Nhận diện Video**: Hỗ trợ định dạng .mp4, xem trước và phát trực tiếp video kết quả đã được xử lý AI.
+- 🎚️ **Thanh điều chỉnh Confidence Threshold**: Tùy chỉnh độ tin cậy trực tiếp từ 0.10 đến 1.00.
+- ⏱️ **Báo cáo chi tiết**: Hiển thị thời gian xử lý (ms) và thống kê danh sách vật thể phát hiện được.
