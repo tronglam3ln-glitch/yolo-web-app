@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1 \
     libglib2.0-0 \
     ffmpeg \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
@@ -15,6 +16,7 @@ COPY main.py .
 
 RUN useradd -m appuser
 RUN mkdir -p /home/appuser/.cache && chown -R appuser:appuser /home/appuser
+RUN chown -R appuser:appuser /app
 USER appuser
 
 EXPOSE 8000
