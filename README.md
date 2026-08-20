@@ -152,7 +152,7 @@ First, clone the project repository to your local machine and navigate into the 
 ```bash
 git clone [https://github.com/](https://github.com/)<your-username>/yolo-web-app.git
 cd yolo-web-app
-
+```
 ### 2. One-Command Startup
 Build and launch all services simultaneously:
 ```
