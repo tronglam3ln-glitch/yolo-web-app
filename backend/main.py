@@ -30,11 +30,12 @@ from ultralytics import YOLO
 # ============================================================================
 # 1. CẤU HÌNH CHUNG
 # ============================================================================
-# Đọc từ biến môi trường để dễ chuyển sang Docker/Cloud ở các tuần sau,
-# nhưng luôn có giá trị mặc định để chạy local ngay bằng `uvicorn main:app`.
 MODEL_NAME = os.getenv("MODEL_NAME", "yolov8n.pt")
-ALLOWED_ORIGIN = os.getenv("ALLOWED_ORIGIN", "*")  # mở "*" để test local
 
+# Đọc từ biến môi trường, mặc định chỉ cho phép Frontend local (http://localhost:5173 và 127.0.0.1:5173)
+# Khi deploy sang Docker/Cloud ở các tuần sau, chỉ cần truyền biến môi trường ALLOWED_ORIGIN="https://domain-cua-ban.com"
+ALLOWED_ORIGIN_ENV = os.getenv("ALLOWED_ORIGIN", "http://localhost:5173,http://127.0.0.1:5173")
+ALLOWED_ORIGINS = [origin.strip() for origin in ALLOWED_ORIGIN_ENV.split(",") if origin.strip()]
 MAX_IMAGE_SIZE_MB = float(os.getenv("MAX_IMAGE_SIZE_MB", "10"))
 MAX_VIDEO_SIZE_MB = float(os.getenv("MAX_VIDEO_SIZE_MB", "50"))
 MAX_VIDEO_DURATION_SEC = float(os.getenv("MAX_VIDEO_DURATION_SEC", "15"))
@@ -59,58 +60,50 @@ logging.basicConfig(
 logger = logging.getLogger("yolo-backend")
 
 # ============================================================================
-# 3. KHỞI TẠO APP + CORS
+# 3. KHỞI TẠO APP + LIFESPAN + CORS
 # ============================================================================
-app = FastAPI(
-    title="YOLO Detection API",
-    description="Backend nhận diện vật thể bằng Ultralytics YOLOv8 cho ảnh và video ngắn.",
-    version="1.0.0",
-)
-
-app.add_middleware(
-    CORSMiddleware,
-    # Chỉ mở đúng origin của frontend khi deploy thật; để "*" phục vụ test local.
-    allow_origins=[ALLOWED_ORIGIN] if ALLOWED_ORIGIN != "*" else ["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Biến toàn cục giữ model - yêu cầu bắt buộc: load ĐÚNG MỘT LẦN khi startup.
 model: Optional[YOLO] = None
 
 
-@app.on_event("startup")
-def load_model() -> None:
-    """
-    Load model YOLOv8 một lần duy nhất khi server khởi động.
+from contextlib import asynccontextmanager
 
-    Tham khảo Ultralytics docs: cách khởi tạo model chỉ cần
-        model = YOLO("yolov8n.pt")
-    Ultralytics sẽ tự động tải file trọng số (.pt) về nếu máy chưa có sẵn.
-    """
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Load model
     global model
     logger.info("Đang load YOLO model: %s ...", MODEL_NAME)
     try:
         model = YOLO(MODEL_NAME)
-        # Tham khảo Ultralytics docs: chạy 1 lần "warm-up" trên ảnh giả để
-        # framework build sẵn graph/cache, giúp request đầu tiên của user không bị chậm.
         dummy_frame = np.zeros((640, 640, 3), dtype=np.uint8)
         model.predict(source=dummy_frame, verbose=False)
         logger.info("Load model thành công, class names: %s", model.names)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.exception("Không thể load YOLO model lúc startup")
-        # Nếu model load lỗi thì để app crash sớm ngay khi startup, tốt hơn là
-        # crash âm thầm lúc user gọi API.
         raise RuntimeError(f"Model load failed: {exc}") from exc
-
-
-@app.on_event("shutdown")
-def cleanup_tmp_dirs() -> None:
-    """Dọn dẹp toàn bộ file tạm khi server tắt (best-effort, không raise lỗi)."""
+        
+    yield
+    
+    # Shutdown: Dọn dẹp thư mục tạm
     for d in (UPLOAD_TMP_DIR, RESULTS_DIR):
         shutil.rmtree(d, ignore_errors=True)
         d.mkdir(parents=True, exist_ok=True)
+
+# Khởi tạo FastAPI ĐÚNG 1 LẦN với lifespan
+app = FastAPI(
+    title="YOLO Detection API",
+    description="Backend nhận diện vật thể bằng Ultralytics YOLOv8 cho ảnh và video ngắn.",
+    version="1.0.0",
+    lifespan=lifespan
+)
+
+# Cấu hình CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,  # Chỉ cho phép origin của frontend (không dùng wildcard "*")
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 # ============================================================================
@@ -213,7 +206,71 @@ def encode_image_to_base64(bgr_image: np.ndarray) -> str:
 
 
 # ============================================================================
-# 5. ENDPOINTS
+# 5. HELPER FUNCTIONS CHO VIDEO
+# ============================================================================
+def _find_output_video(job_output_dir: Path) -> Optional[Path]:
+    """Tìm file video (.mp4/.avi) đầu tiên trong thư mục output của 1 job."""
+    if not job_output_dir.exists():
+        return None
+    for ext in (".mp4", ".avi"):
+        found = list(job_output_dir.glob(f"*{ext}"))
+        if found:
+            return found[0]
+    return None
+
+def reencode_to_h264(input_path: Path) -> Path:
+    """Re-encode video sang H.264 (yuv420p) cho browser."""
+    output_path = input_path.with_name(f"{input_path.stem}_h264.mp4")
+    ffmpeg_bin = imageio_ffmpeg.get_ffmpeg_exe()
+
+    cmd = [
+        ffmpeg_bin, "-y",
+        "-i", str(input_path),
+        "-c:v", "libx264",
+        "-pix_fmt", "yuv420p",
+        "-movflags", "+faststart",
+        "-an",
+        str(output_path),
+    ]
+
+    try:
+        subprocess.run(
+            cmd,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+    except subprocess.CalledProcessError as exc:
+        logger.error("ffmpeg re-encode thất bại: %s", exc.stderr)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Xử lý video kết quả thất bại (re-encode).",
+        ) from exc
+    except subprocess.TimeoutExpired as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Re-encode video quá thời gian cho phép.",
+        ) from exc
+
+    input_path.unlink(missing_ok=True)
+    return output_path
+
+def _find_saved_output_video(job_output_dir: Path) -> Optional[Path]:
+    if not job_output_dir.exists():
+        return None
+    h264_files = list(job_output_dir.glob("*_h264.mp4"))
+    if h264_files:
+        return h264_files[0]
+    for ext in (".mp4", ".avi"):
+        found = list(job_output_dir.glob(f"*{ext}"))
+        if found:
+            return found[0]
+    return None
+
+
+# ============================================================================
+# 6. ENDPOINTS
 # ============================================================================
 @app.get("/health")
 def health_check():
@@ -405,93 +462,8 @@ async def detect_video(
         upload_path.unlink(missing_ok=True)
 
 
-def _find_output_video(job_output_dir: Path) -> Optional[Path]:
-    """Tìm file video (.mp4/.avi) đầu tiên trong thư mục output của 1 job."""
-    if not job_output_dir.exists():
-        return None
-    for ext in (".mp4", ".avi"):
-        found = list(job_output_dir.glob(f"*{ext}"))
-        if found:
-            return found[0]
-    return None
-def reencode_to_h264(input_path: Path) -> Path:
-    """
-    Re-encode video sang H.264 (yuv420p) để trình duyệt phát được qua thẻ <video>.
-    Ultralytics/OpenCV mặc định ghi bằng codec mp4v, hầu hết browser không hỗ trợ
-    phát trực tiếp codec này dù đuôi file là .mp4.
-    """
-    output_path = input_path.with_name(f"{input_path.stem}_h264.mp4")
-    ffmpeg_bin = imageio_ffmpeg.get_ffmpeg_exe()
-
-    cmd = [
-        ffmpeg_bin, "-y",
-        "-i", str(input_path),
-        "-c:v", "libx264",
-        "-pix_fmt", "yuv420p",
-        "-movflags", "+faststart",  # cho phép phát trước khi tải xong toàn bộ file
-        "-an",  # video YOLO output không có audio track, bỏ qua xử lý audio
-        str(output_path),
-    ]
-
-    try:
-        subprocess.run(
-            cmd,
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=60,
-        )
-    except subprocess.CalledProcessError as exc:
-        logger.error("ffmpeg re-encode thất bại: %s", exc.stderr)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Xử lý video kết quả thất bại (re-encode).",
-        ) from exc
-    except subprocess.TimeoutExpired as exc:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Re-encode video quá thời gian cho phép.",
-        ) from exc
-
-    # Xoá file gốc codec mp4v, chỉ giữ bản h264 để phục vụ FE
-    input_path.unlink(missing_ok=True)
-    return output_path
-
-
-def _find_saved_output_video(job_output_dir: Path) -> Optional[Path]:
-    """Tìm file video kết quả trong thư mục output của 1 job.
-    Ưu tiên file đã re-encode h264 (phục vụ phát trên browser)."""
-    if not job_output_dir.exists():
-        return None
-    h264_files = list(job_output_dir.glob("*_h264.mp4"))
-    if h264_files:
-        return h264_files[0]
-    for ext in (".mp4", ".avi"):
-        found = list(job_output_dir.glob(f"*{ext}"))
-        if found:
-            return found[0]
-    return None
-
-
-@app.get("/api/results/{job_id}")
-def get_result_video(job_id: str):
-    """Trả về file video kết quả (đã re-encode h264) cho browser phát/tải xuống."""
-    job_output_dir = RESULTS_DIR / job_id
-    video_path = _find_saved_output_video(job_output_dir)
-    if video_path is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Không tìm thấy video kết quả cho job_id này.",
-        )
-    return FileResponse(
-        path=str(video_path),
-        media_type="video/mp4",
-        filename=video_path.name,
-    )
-
-
 # ============================================================================
-# 6. GLOBAL EXCEPTION HANDLER (chống crash server với lỗi không lường trước)
+# 7. GLOBAL EXCEPTION HANDLER (chống crash server với lỗi không lường trước)
 # ============================================================================
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request, exc: Exception):

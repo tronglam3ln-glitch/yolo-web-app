@@ -30,8 +30,11 @@ To maintain a clean and reliable repository, our team follows these mandatory wo
 Before running or contributing to this project locally, ensure you have installed:
 
 - **Operating System:** Linux / Windows / macOS
-- **Python:** `3.10+` (for backend development)
-- **Node.js:** `18.x+` (for frontend development)
+- **Python:** `3.10+` (for local backend development)
+- **Node.js:** `20.x+` (for local frontend development)
+- **Docker & Docker Compose:** Required for running the application via containers.
+  - **Linux (Ubuntu):** Install [Docker Engine](https://docs.docker.com/engine/install/ubuntu/) and [Docker Compose plugin](https://docs.docker.com/compose/install/linux/).
+  - **Windows / macOS:** Install [Docker Desktop](https://docs.docker.com/desktop/) (includes Docker Engine and Compose).
 
 ---
 
@@ -137,3 +140,18 @@ npm run dev
 - 🎥 **Nhận diện Video**: Hỗ trợ định dạng .mp4, xem trước và phát trực tiếp video kết quả đã được xử lý AI.
 - 🎚️ **Thanh điều chỉnh Confidence Threshold**: Tùy chỉnh độ tin cậy trực tiếp từ 0.10 đến 1.00.
 - ⏱️ **Báo cáo chi tiết**: Hiển thị thời gian xử lý (ms) và thống kê danh sách vật thể phát hiện được.
+
+---
+
+## 🐳 Running with Docker (Recommended)
+
+Run the entire stack (Backend + Frontend) with a single command without setting up local Python or Node environments.
+
+### 1. One-Command Startup
+Build and launch all services simultaneously:
+```
+docker compose up --build
+```
+- API docs (Swagger UI, tự sinh bởi FastAPI): http://localhost:8000/docs
+- Giao diện Web: http://localhost:5173
+
