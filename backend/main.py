@@ -71,11 +71,12 @@ app.add_middleware(
     CORSMiddleware,
     # Chỉ mở đúng origin của frontend khi deploy thật; để "*" phục vụ test local.
     allow_origins=[ALLOWED_ORIGIN] if ALLOWED_ORIGIN != "*" else ["*"],
-    allow_credentials=True,
+    # allow_credentials chỉ bật khi có origin cụ thể (deploy thật, cần gửi cookie/session).
+    # Khi test local với "*", phải tắt credentials vì "*" + credentials=True bị trình duyệt chặn.
+    allow_credentials=ALLOWED_ORIGIN != "*",
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 # Biến toàn cục giữ model - yêu cầu bắt buộc: load ĐÚNG MỘT LẦN khi startup.
 model: Optional[YOLO] = None
 
