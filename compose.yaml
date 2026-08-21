@@ -1,22 +1,31 @@
 services:
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: yolo_backend
     ports:
       - "8000:8000"
-    networks:
-      - app-network
+    environment:
+      - MODEL_NAME=yolov8n.pt
+      - ALLOWED_ORIGIN=*
+    volumes:
+      - yolo_model_cache:/root/.cache/ultralytics
+      - ./backend/yolov8n.pt:/app/yolov8n.pt
+    restart: unless-stopped
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: yolo_frontend
     ports:
-      - "3000:80"
+      - "5173:5173"
     environment:
-      - VITE_API_BASE_URL=http://backend:8000
+      - VITE_API_URL=http://localhost:8000
     depends_on:
       - backend
-    networks:
-      - app-network
+    restart: unless-stopped
 
-networks:
-  app-network:
-    driver: bridge
+volumes:
+  yolo_model_cache:
