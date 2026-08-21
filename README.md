@@ -143,17 +143,17 @@ npm run dev
 
 ---
 
-## 🐳 Running with Docker (Recommended)
+# 🐳 Running with Docker (Recommended)
 
 Run the entire stack (Backend + Frontend) with a single command without setting up local Python or Node environments.
 
-### 1. Clone the Repository
+## 1. Clone the Repository
 First, clone the project repository to your local machine and navigate into the project folder:
 ```bash
 git clone [https://github.com/](https://github.com/)<your-username>/yolo-web-app.git
 cd yolo-web-app
 ```
-### 2. One-Command Startup
+## 2. One-Command Startup
 Build and launch all services simultaneously:
 ```
 docker compose up --build
