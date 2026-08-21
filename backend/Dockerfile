@@ -12,8 +12,6 @@ COPY requirements.txt .
 COPY backend/main.py .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY main.py .
-
 RUN useradd -m appuser
 RUN mkdir -p /home/appuser/.cache && chown -R appuser:appuser /home/appuser
 USER appuser
