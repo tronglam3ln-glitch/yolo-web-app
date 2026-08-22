@@ -461,7 +461,21 @@ async def detect_video(
         # Dọn file upload gốc, chỉ giữ lại video kết quả để phục vụ tải xuống.
         upload_path.unlink(missing_ok=True)
 
-
+@app.get("/api/results/{job_id}")
+def get_result_video(job_id: str):
+    """Trả về file video kết quả (đã re-encode h264) cho browser phát/tải xuống."""
+    job_output_dir = RESULTS_DIR / job_id
+    video_path = _find_saved_output_video(job_output_dir)
+    if video_path is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Không tìm thấy video kết quả cho job_id này.",
+        )
+    return FileResponse(
+        path=str(video_path),
+        media_type="video/mp4",
+        filename=video_path.name,
+    )
 # ============================================================================
 # 7. GLOBAL EXCEPTION HANDLER (chống crash server với lỗi không lường trước)
 # ============================================================================
