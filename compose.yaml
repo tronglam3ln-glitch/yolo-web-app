@@ -16,8 +16,8 @@ services:
 
   frontend:
     build:
-      context: .
-      dockerfile: frontend/Dockerfile
+      context: ./frontend
+      dockerfile: Dockerfile
     container_name: yolo_frontend
     ports:
       - "5173:80"
