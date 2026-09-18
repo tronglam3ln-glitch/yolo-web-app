@@ -1,0 +1,119 @@
+.app {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 32px 20px;
+}
+
+.app__title {
+  text-align: center;
+  font-size: 26px;
+  margin-bottom: 24px;
+}
+
+.app__submit {
+  width: 100%;
+  padding: 12px;
+  margin-top: 4px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+  background-color: var(--accent);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.app__submit:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
+
+.app__error {
+  margin-top: 16px;
+  padding: 12px;
+  color: #b3261e;
+  background-color: #fdecea;
+  border-radius: 8px;
+}
+
+/* --- Mode switch --- */
+.mode-switch {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  margin-bottom: 20px;
+}
+
+.mode-switch__option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* --- Upload panel --- */
+.upload-panel {
+  border: 2px dashed var(--accent);
+  border-radius: 10px;
+  padding: 24px;
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.upload-panel__preview {
+  margin-top: 16px;
+}
+
+.upload-panel__preview-label {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.upload-panel__preview img,
+.upload-panel__preview video {
+  max-width: 100%;
+  max-height: 260px;
+  border-radius: 8px;
+}
+
+/* --- Confidence slider --- */
+.confidence-slider {
+  margin-bottom: 20px;
+}
+
+.confidence-slider input[type='range'] {
+  width: 100%;
+  margin-top: 6px;
+}
+
+/* --- Result panel --- */
+.result-panel {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 2px solid var(--border);
+  text-align: left;
+}
+
+.result-panel__media {
+  display: block;
+  max-width: 100%;
+  margin-top: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+/* --- Detection list --- */
+.detection-list {
+  margin-top: 20px;
+}
+
+.detection-list ul {
+  padding-left: 20px;
+}
+
+.detection-list li {
+  margin-bottom: 4px;
+}

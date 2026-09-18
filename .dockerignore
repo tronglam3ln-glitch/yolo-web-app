@@ -1,0 +1,17 @@
+cat > .dockerignore << 'EOF'
+**/__pycache__/
+*.pyc
+*.pyo
+backend/tests/
+.env
+.venv/
+venv/
+backend/.env
+tests/
+.pytest_cache/
+*.pt
+.git/
+.gitignore
+frontend/
+node_modules/
+backend/__pycache__/
