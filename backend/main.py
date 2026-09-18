@@ -5,26 +5,24 @@ ví dụ chính thức trong tài liệu mã nguồn mở của Ultralytics YOLO
 https://docs.ultralytics.com/modes/predict/
 https://docs.ultralytics.com/usage/python/
 """
+import base64
+import io
 import logging
 import os
 import shutil
+import subprocess
 import tempfile
 import time
 import uuid
 from pathlib import Path
-from typing import List, Optional
-import subprocess
-import imageio_ffmpeg
 
 import cv2
+import imageio_ffmpeg
 import numpy as np
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from PIL import Image
-import io
-import base64
-
 from ultralytics import YOLO
 
 # ============================================================================
@@ -62,10 +60,11 @@ logger = logging.getLogger("yolo-backend")
 # ============================================================================
 # 3. KHỞI TẠO APP + LIFESPAN + CORS
 # ============================================================================
-model: Optional[YOLO] = None
+model: YOLO | None = None
 
 
 from contextlib import asynccontextmanager
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -208,7 +207,7 @@ def encode_image_to_base64(bgr_image: np.ndarray) -> str:
 # ============================================================================
 # 5. HELPER FUNCTIONS CHO VIDEO
 # ============================================================================
-def _find_output_video(job_output_dir: Path) -> Optional[Path]:
+def _find_output_video(job_output_dir: Path) -> Path | None:
     """Tìm file video (.mp4/.avi) đầu tiên trong thư mục output của 1 job."""
     if not job_output_dir.exists():
         return None
@@ -256,7 +255,7 @@ def reencode_to_h264(input_path: Path) -> Path:
     input_path.unlink(missing_ok=True)
     return output_path
 
-def _find_saved_output_video(job_output_dir: Path) -> Optional[Path]:
+def _find_saved_output_video(job_output_dir: Path) -> Path | None:
     if not job_output_dir.exists():
         return None
     h264_files = list(job_output_dir.glob("*_h264.mp4"))
@@ -284,7 +283,7 @@ def health_check():
 
 @app.post("/api/detect/image")
 async def detect_image(
-    file: UploadFile = File(...),
+    file: UploadFile = File(...),  # noqa: B008
     confidence: float = Form(0.25),
 ):
     """
@@ -308,7 +307,7 @@ async def detect_image(
     # Decode bytes -> ảnh PIL -> numpy array (RGB)
     try:
         pil_image = Image.open(io.BytesIO(content)).convert("RGB")
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Không thể đọc file ảnh, file có thể bị hỏng: {exc}",
@@ -321,7 +320,7 @@ async def detect_image(
         # Tham khảo Ultralytics docs (Python usage): model(source, conf=...) hoặc
         # model.predict(source, conf=...) trả về list các đối tượng Results.
         results = model.predict(source=np_image, conf=confidence, verbose=False)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.exception("Lỗi trong lúc inference ảnh")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -336,7 +335,7 @@ async def detect_image(
     annotated_bgr = result.plot()
     annotated_base64 = encode_image_to_base64(annotated_bgr)
 
-    detections: List[dict] = []
+    detections: list[dict] = []
     boxes = result.boxes
     if boxes is not None:
         for box in boxes:
@@ -370,12 +369,9 @@ async def detect_image(
 
 @app.post("/api/detect/video")
 async def detect_video(
-    file: UploadFile = File(...),
+    file: UploadFile = File(...),  # noqa: B008
     confidence: float = Form(0.25),
 ):
-    """
-   
-    """
     if model is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -392,7 +388,7 @@ async def detect_video(
     job_output_dir = RESULTS_DIR / job_id
 
     try:
-        with open(upload_path, "wb") as f:
+        with open(upload_path, "wb") as f:  # noqa: ASYNC230
             f.write(content)
 
         # Kiểm tra thời lượng để tránh video quá dài làm treo server (theo giới hạn đề bài)
@@ -413,7 +409,7 @@ async def detect_video(
                 exist_ok=True,
                 verbose=False,
             )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.exception("Lỗi trong lúc inference video")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
