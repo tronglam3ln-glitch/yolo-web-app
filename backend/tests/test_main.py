@@ -2,9 +2,8 @@ import io
 
 import pytest
 from fastapi.testclient import TestClient
-from PIL import Image
-
 from main import app
+from PIL import Image
 
 
 @pytest.fixture(scope="module")
