@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Đọc URL backend từ biến môi trường (xem file .env.example).
 // Nếu không cấu hình, mặc định trỏ về backend FastAPI chạy local.
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://yolo-web-app-hrgd.onrender.com/';
 
 const DETECT_ENDPOINTS = {
   image: '/api/detect/image',
