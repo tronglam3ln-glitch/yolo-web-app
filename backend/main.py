@@ -98,7 +98,7 @@ app = FastAPI(
 # Cấu hình CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,  # Chỉ cho phép origin của frontend (không dùng wildcard "*")
+    allow_origins=["*"],  # Chỉ cho phép origin của frontend (không dùng wildcard "*")git checkout -b fix-cors-render
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
