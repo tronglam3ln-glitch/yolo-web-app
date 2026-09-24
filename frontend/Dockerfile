@@ -7,6 +7,14 @@ COPY package*.json ./
 RUN npm ci
 
 COPY . .
+
+# Nhận VITE_API_URL từ Render (Dashboard > Environment) truyền vào lúc build.
+# Vite chỉ đọc được import.meta.env.VITE_* tại thời điểm build (npm run build),
+# nên PHẢI khai báo ARG rồi gán sang ENV trước khi chạy build, nếu không biến
+# trên Render Dashboard sẽ không có tác dụng gì với bản build ra.
+ARG VITE_API_URL
+ENV VITE_API_URL=$VITE_API_URL
+
 RUN npm run build
 
 # --- STAGE 2: Dùng Nginx để phục vụ static files ---
